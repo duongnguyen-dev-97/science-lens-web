@@ -1,15 +1,21 @@
-name: science_lens
-description: ScienceLens Flutter Web
+name: science_lens_web
+description: ScienceLens Flutter Web client
+publish_to: 'none'
+version: 1.0.0+1
+
 environment:
-  sdk: ">=3.2.0 <4.0.0"
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  http: ^1.2.2
-  file_picker: ^8.0.3
-  image: ^4.1.7
+  http: ^1.2.1
+  file_picker: ^8.0.0
 
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
 
 flutter:
   uses-material-design: true
