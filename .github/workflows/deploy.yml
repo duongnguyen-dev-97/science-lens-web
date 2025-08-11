@@ -28,7 +28,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Web (release)
-        run: flutter build web --release --dart-define=API_BASE=${{ secrets.API_BASE }}
+        run: flutter build web --release \--dart-define=API_BASE=${{ secrets.API_BASE }} \--base-href="/science-lens-web/"
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
