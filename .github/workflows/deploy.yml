@@ -20,6 +20,10 @@ jobs:
         with:
           channel: stable
 
+      # 👉 This generates the missing web/ folder (index.html, etc.)
+      - name: Ensure Flutter project skeleton (web)
+        run: flutter create . --platforms=web --project-name science_lens
+
       - name: Flutter pub get
         run: flutter pub get
 
