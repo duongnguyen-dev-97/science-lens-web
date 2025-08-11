@@ -1,9 +1,7 @@
 // lib/main.dart
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:image/image.dart' as img;
 
 import 'services/api_client.dart';
 import 'widgets/result_card.dart';
@@ -29,10 +27,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // Use the page's own origin (e.g., https://science-lens-api.vercel.app)
-  // This avoids CORS and preview-URL problems once UI is hosted on same Vercel project.
-  final String _apiBase = Uri.base.origin;
-  late final ApiClient api = ApiClient(baseUrl: _apiBase);
+  // Use the page's origin so UI and API share the same domain on Vercel.
+  late final ApiClient api = ApiClient(baseUrl: Uri.base.origin);
 
   String? _filename;
   String? _imageBase64;
@@ -45,42 +41,25 @@ class _HomePageState extends State<HomePage> {
   );
   final _followCtrl = TextEditingController();
 
-  // ---- IMAGE UTILITIES ------------------------------------------------------
-
-  // Compress to keep payload well under Vercel's body limit.
-  // Downscales longest edge to ~1280px and encodes as JPEG @ quality 75.
-  Future<String> _compressToBase64(Uint8List bytes) async {
-    final decoded = img.decodeImage(bytes);
-    if (decoded == null) return base64Encode(bytes);
-
-    final bool widthIsLonger = decoded.width >= decoded.height;
-    final resized = img.copyResize(
-      decoded,
-      width: widthIsLonger ? 1280 : null,
-      height: widthIsLonger ? null : 1280,
-    );
-
-    final jpg = img.encodeJpg(resized, quality: 75);
-    return base64Encode(Uint8List.fromList(jpg));
+  @override
+  void dispose() {
+    _promptCtrl.dispose();
+    _followCtrl.dispose();
+    super.dispose();
   }
 
-  // Pick an image and pre-compress it for upload.
   Future<void> _pickFile() async {
     final result =
         await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
     if (result == null || result.files.single.bytes == null) return;
-
     final file = result.files.single;
-    final compressedB64 = await _compressToBase64(file.bytes!);
 
     setState(() {
       _filename = file.name;
-      _imageBase64 = compressedB64;
+      _imageBase64 = base64Encode(file.bytes!); // (no compression)
       _analysis = null;
     });
   }
-
-  // ---- API CALLS ------------------------------------------------------------
 
   Future<void> _analyze() async {
     if (_imageBase64 == null) return;
@@ -95,16 +74,11 @@ class _HomePageState extends State<HomePage> {
         mime: mime,
         prompt: _promptCtrl.text,
       );
-
-      setState(() {
-        _analysis = out['text'] as String? ?? 'No text returned.';
-      });
+      setState(() => _analysis = out['text'] as String? ?? 'No text returned.');
     } catch (e) {
-      setState(() {
-        _analysis = 'Error: $e';
-      });
+      setState(() => _analysis = 'Error: $e');
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -112,25 +86,20 @@ class _HomePageState extends State<HomePage> {
     if (_analysis == null || _followCtrl.text.trim().isEmpty) return;
     setState(() => _loading = true);
     try {
-      final answer = await api.followUp(
+      final a = await api.followUp(
         priorText: _analysis!,
         question: _followCtrl.text.trim(),
       );
       setState(() {
-        _analysis =
-            '$_analysis\n\n— Follow-up —\nQ: ${_followCtrl.text}\nA: $answer';
+        _analysis = '$_analysis\n\n— Follow-up —\nQ: ${_followCtrl.text}\nA: $a';
         _followCtrl.clear();
       });
     } catch (e) {
-      setState(() {
-        _analysis = '$_analysis\n\nFollow-up error: $e';
-      });
+      setState(() => _analysis = '$_analysis\n\nFollow-up error: $e');
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
-
-  // ---- UI -------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -139,13 +108,10 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('ScienceLens (Web)'),
-        actions: [
-          Tooltip(
-            message: 'API: $_apiBase',
-            child: const Padding(
-              padding: EdgeInsets.only(right: 12),
-              child: Icon(Icons.cloud_done_outlined),
-            ),
+        actions: const [
+          Padding(
+            padding: EdgeInsets.only(right: 12),
+            child: Icon(Icons.cloud_done_outlined),
           )
         ],
       ),
@@ -180,10 +146,7 @@ class _HomePageState extends State<HomePage> {
                 onPressed: canAnalyze ? _analyze : null,
                 icon: _loading
                     ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
+                        width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.science_outlined),
                 label: const Text('Analyze'),
               ),
@@ -196,8 +159,7 @@ class _HomePageState extends State<HomePage> {
                     child: TextField(
                       controller: _followCtrl,
                       decoration: const InputDecoration(
-                        labelText:
-                            'Ask a follow-up (e.g., “how to tell calcite from quartz?”)',
+                        labelText: 'Ask a follow-up (e.g., “how to tell calcite from quartz?”)',
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -213,7 +175,7 @@ class _HomePageState extends State<HomePage> {
               const Spacer(),
               const Center(
                 child: Text(
-                  'Tip: start with a small image; large photos are auto-compressed.',
+                  'Tip: start with a small image; we can add compression later.',
                   style: TextStyle(fontSize: 12, color: Colors.black54),
                 ),
               ),
